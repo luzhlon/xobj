@@ -84,11 +84,11 @@ struct Value {
     int index(Value &v);
     int count(Value &v);
 
-    bool operator==(Value &v) const;
-    bool operator!=(Value &v) const { return !(*this == v); }
-    Value operator[](Value &v) const { return get(v); }
-    Value& operator+=(Value &v);
-    Value& operator-=(Value &v);
+    bool operator==(Value& v) const;
+    bool operator!=(Value& v) const { return !(*this == v); }
+    Value operator[](Value& v) const { return get(v); }
+    Value& operator+=(Value& v);
+    Value& operator-=(Value& v);
     // unsafe
     operator bool();
     //operator int();
@@ -100,13 +100,10 @@ struct Value {
     int index(const Value &v) { return index((Value &)v); }
     int count(const Value &v) { return count((Value &)v); }
     Value& operator=(const Value &v) { return operator=((Value &)v); }
-    Value operator[](const Value &v) const { return operator[]((Value &)v); }
+    Value operator[](const Value &v) const { return get(v); }
     Value& operator+=(const Value &v) { return operator+=((Value &)v); }
     Value& operator-=(const Value &v) { return operator-=((Value &)v); }
     bool operator==(const Value &v) const { return operator==((Value &)v); }
-
-    void print() { std::cout << *this; }
-    friend std::ostream& operator<<(std::ostream&, const Value&);
 
     DECLARE_TOPYOBJ;
 
@@ -128,8 +125,9 @@ public:
 };
 
 // Value operator""_s(const char *str, size_t len);
-//template <typename T>
-//inline Value V(T v) { return Value::V(v) };
+template <typename T> inline Value V(T v) { return Value::V(v); }
+
+std::ostream& operator<<(std::ostream&, const Value&);
 
 }
 

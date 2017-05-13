@@ -9,8 +9,8 @@
 namespace xobj {
 
 Value Value::Nil;
-Value True(true);
-Value False(false);
+Value Value::True(true);
+Value Value::False(false);
 
 void Value::_inc_ref() { if (_obj) _obj->refInc(); }
 void Value::_dec_ref() { if (_obj) _obj->refDec(); }

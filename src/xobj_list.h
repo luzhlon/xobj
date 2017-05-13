@@ -10,8 +10,7 @@ namespace xobj {
 
 struct List: public Object, public std::vector<Value> {
     List(size_t size = 0) : Object(TV_LIST) { reserve(size); }
-    //List(Value *list, size_t size);
-    ~List() = default;
+    virtual ~List() = default;
 
     int index(Value &v) const { return std::find(begin(), end(), v)-begin(); }
     int index(const Value &v) const { return index((Value &)v); }

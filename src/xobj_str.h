@@ -11,12 +11,13 @@ void _print_str(std::ostream& o, const char *data, size_t len);
 void _print_bin(std::ostream& o, const char *data, size_t len);
 
 struct String: public Object {
-    static String *New(char *str);
     static String *New(char *str, size_t len);
-    static String *New(const char *);
-    static void    Delete(String *);
+    static String *New(std::istream& in, size_t len);
 
     friend std::ostream& operator<<(std::ostream&, const String&);
+
+    bool isbin() { return _ex.b; }
+    void isbin(bool b) { _ex.b = b; }
 
     inline size_t  len() const { return _size; }
 
@@ -27,7 +28,8 @@ struct String: public Object {
 
     inline const char *c_str() const { return data; }
 
-    String() :Object(TV_STRING), _size(0) {}
+    String() :Object(TV_STRING), _size(0) { isbin(false); }
+    virtual ~String() {}
 
 private:
     size_t   _size;      // size of bytes without '\0'

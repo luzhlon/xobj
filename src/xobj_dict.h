@@ -58,7 +58,7 @@ struct Dict: public Object {
     };
 
     Dict(size_t size = 0) : Object(TV_DICT) { alloc(size); }
-    ~Dict() = default;
+    virtual ~Dict() { delete[] _items; }
 
     inline int len() const { return _size; }
     void set(Value &k, Value &v);

@@ -39,7 +39,23 @@ String *String::New(char *data, size_t len) {
     return str;
 }
 
-void String::Delete(String *self) { delete self; }
+String *String::New(std::istream& in, size_t len) {
+    String *nstr = nullptr;
+    auto size = offsetof(String, data) + len + 1;
+    auto str = (String *)(new char[size]);
+    if (!in.read(str->data, len)) { delete str; return nullptr; }
+    str->data[len] = 0;
+    if (isintern(str->data, len))
+        nstr = strdict.get(str->data, len);
+    if (nstr) {
+        delete (char *)str;
+        return nstr;
+    }
+    str->String::String();
+    str->_hash = _gethash(str->data, len);
+    str->_size = len;
+    return str;
+}
 
 bool String::operator==(Value &v) const {
     if (!v.isstr()) return false;

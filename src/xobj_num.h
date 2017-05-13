@@ -7,15 +7,10 @@
 namespace xobj {
 
 struct Number: public Object {
-    static Number *New(int64_t);
-    static Number *New(double);
-    static void    Delete(Number *);
+    Number(int64_t i): Object(TV_NUMBER) { isint(true); this->i = i; }
+    Number(double f): Object(TV_NUMBER) { isint(false); this->f = f; }
+    virtual ~Number() = default;
 
-    template<typename T>
-    Number(T v): Object(TV_NUMBER) { init(v); }
-
-    void init(int64_t i) { isint(true); this->i = i; }
-    void init(double f) { isint(false); this->f = f; }
 
     virtual bool operator==(Value &v) const {
         return v.isint() ?

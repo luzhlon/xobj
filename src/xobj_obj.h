@@ -6,17 +6,20 @@
 
 namespace xobj {
 
+typedef VALUE_TYPE vtype;
+
 struct Object {
     static Object Nil;
 
-    Object(uint16_t type = TV_NIL) { init(type); }
+    Object(vtype type = TV_NIL) { init(type); }
+    virtual ~Object() = default;
 
-    void init(uint16_t type = TV_NIL)
+    void init(vtype type = TV_NIL)
     { _type = type, _refs = 0; }
     uint16_t type() const { return _type; }
 
     inline void refInc() { _refs += 1; }
-    void refDec();
+    inline void refDec() { if (_type > TV_BOOL && !(--_refs)) delete this; }
 
     virtual bool operator==(Value &v) const {
         return type() == v.type() && v._obj == this;
@@ -24,7 +27,7 @@ struct Object {
     virtual uint32_t hash() const { return 0; }
 
     uint32_t _refs;      // count of references
-    uint16_t _type;      // type-id of object
+    vtype    _type;      // type-id of object
     union {
         int16_t  i16;
         uint16_t u16;

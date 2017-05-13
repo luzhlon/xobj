@@ -12,12 +12,18 @@ using namespace xobj;
 using namespace std;
 // test msgpack converting
 void test_msgpack() {
-    //auto l = L(1, 2, 3);
-    auto l = Value(1.0);
+    auto l = L(Value::Nil, D("float", 1.23, "negative", -12333333333333332));
+    //auto l = V(1.23);
+    cout << l << endl;
     stringstream s;
     xobj::toMsgPack(s, l);
     auto& str = s.str();
-    xobj::_print_bin(cout, str.c_str(), str.size());
+    s.seekg(0, s.beg);
+    _print_bin(cout, str.c_str(), str.size());
+    cout << endl;
+    Value v;
+    if (fromMsgPack(s, v))
+        cout << v << endl;
 }
 // test string internal
 void test_internal() {
