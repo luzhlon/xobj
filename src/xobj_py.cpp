@@ -13,7 +13,7 @@ PyObject *Value::toPyObj() {
     case TV_NUMBER:
         return isint()? PyLong_FromLong(_num()->i): PyFloat_FromDouble(_num()->f);
     case TV_BOOL:
-        return _bool()->val() ? Py_True : Py_False;
+        return b()->val() ? Py_True : Py_False;
     case TV_STRING:
         return PyUnicode_Decode(_str()->c_str(), _str()->len(), _py_encode, nullptr);
     case TV_LIST:

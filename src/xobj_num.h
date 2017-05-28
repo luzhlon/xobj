@@ -7,32 +7,47 @@
 namespace xobj {
 
 struct Number: public Object {
-    Number(int64_t i): Object(TV_NUMBER) { isint(true); this->i = i; }
-    Number(double f): Object(TV_NUMBER) { isint(false); this->f = f; }
-    virtual ~Number() = default;
+    void release() override { delete this; }
+};
 
+struct Int: public Number {
+    Int(int64_t i) { this->i = i; }
 
-    virtual bool operator==(Value &v) const {
-        return v.isint() ?
-            (isint() && i == v.num()->i) : (!isint() && f == v.num()->f);
-    }
-    virtual uint32_t _hash() const { return i; }
+    inline int64_t val() const { return i; }
 
-    inline bool isint() const { return _ex.b; }
-    inline void isint(bool b) { _ex.b = b; }
-
-    friend std::ostream& operator<<(std::ostream& o, const Number& n) {
-        if (n.isint())
-            o << n.i;
-        else
-            o << n.f;
-        return o;
+    hash_t hash() const override { return i; }
+    type_t type() const override { return TV_INT; }
+    operator bool() const override { return val() != 0; }
+    bool operator==(Value &v) const override {
+        return v.isint() && val() == v.i().val();
     }
 
-    union {
-        int64_t i;
-        double  f;
-    };
+    friend std::ostream& operator<<(std::ostream& o, const Int& n) {
+        o << n.i; return o;
+    }
+
+private:
+    int64_t i;
+};
+
+struct Float : public Number {
+    Float(double f) { this->f = f; }
+
+    inline double val() const { return f; }
+
+    hash_t hash() const override { return *(hash_t *)&f; }
+    type_t type() const override { return TV_FLOAT; }
+    operator bool() const override { return val() != 0.0; }
+    bool operator==(Value &v) const override {
+        return v.isfloat() && val() == v.f().val();
+    }
+
+    friend std::ostream& operator<<(std::ostream& o, const Float& f) {
+        o << f.f; return o;
+    }
+
+private:
+    double f;
 };
 
 }

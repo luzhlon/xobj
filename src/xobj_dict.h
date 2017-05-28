@@ -2,9 +2,9 @@
 #define __XOBJ_DICT_H__
 
 #include <iostream>
-#include <vector>
 #include <algorithm>
 #include "xobj_obj.h"
+#include "xobj_val.h"
 
 namespace xobj {
 
@@ -20,15 +20,12 @@ struct Dict: public Object {
     private:
         friend struct Dict;
 
-        inline void init() {
-            key().init(), value().init();
-            prev = 0, next = 0;
-        }
         inline void init(Value &k, Value &v = Value::Nil) {
-            set(k, v);
-            prev = next = 0;
+            set(k, v); prev = next = 0;
         }
-        inline void set(Value &k, Value &v = Value::Nil) { key() = k; value() = v; }
+        inline void set(Value &k, Value &v = Value::Nil) {
+            key() = k; value() = v;
+        }
         inline Node& operator=(Node &n) {
             key() = n.key(); value() = n.value();
             return *this;
@@ -38,6 +35,7 @@ struct Dict: public Object {
         inline void  Next(Node *n) { next = n - this; }
         inline void  Prev(Node *n) { prev = n - this; }
 
+    private:
         Value _key;     // key
         Value _val;     // value
         int   prev = 0;
@@ -57,15 +55,15 @@ struct Dict: public Object {
         Node *e;
     };
 
-    Dict(size_t size = 0) : Object(TV_DICT) { alloc(size); }
-    virtual ~Dict() { delete[] _items; }
+    Dict(size_t size = 0) { alloc(size); }
+    ~Dict() { delete[] _items; }
 
     inline int len() const { return _size; }
     void set(Value &k, Value &v);
     void set(const Value &k, const Value &v) { set((Value &)k, (Value &)v); }
     Value get(Value &k) {
         if (k.isnil()) return Value::Nil;
-        auto *node = NodeByKey(k);
+        auto node = NodeByKey(k);
         return node ? node->value() : Value::Nil;
     }
     Value get(const Value &k) { return get((Value &)k); }
@@ -75,15 +73,21 @@ struct Dict: public Object {
 
     void clear() { auto o = _items; alloc(0); delete[] o; }
 
+    type_t type() const override { return TV_DICT; }
+    void release() override { delete this; }
+    operator bool() const override { return len() > 0; }
+    bool operator==(Value& v) const override {
+        return v.isdict() && this == &v.d();
+    }
+
     Iterator begin() const { return *(new Iterator(_items, _items+_capacity)); }
     Iterator end() const { return *(new Iterator(_items, _items+_capacity)); }
 
     friend std::ostream& operator<<(std::ostream&, const Dict&);
-    DECLARE_TOPYOBJ
 
 private:
     friend struct String;
-    String *get(char *str, size_t len);
+    String *get(char *str, size_t len, hash_t hash);
 
 private:
     void alloc(size_t size) {
@@ -98,20 +102,23 @@ private:
     inline Node *HashNode(uint32_t hash) {
         return _capacity ? &_items[hash % _capacity]: nullptr;
     }
-    Node *HashNode(Value &k) { return HashNode(k._hash()); }
+    Node *HashNode(Value &k) { return HashNode(k.gethash()); }
     // Link new node n to o placed
     void Link(Node *o, Node *n);
     // Move the node
     void MoveNode(Node *src, Node *dst);
     // Get a idle node, it's needed extend if return NULL
     Node *GetIdleNode();
-    // Find node in links k placed
+    // Find node in links which k placed in
     Node *FindNode(Node *n, Value &k);
-    // Node k occupied, there is no thus in dict if return NULL
+    // Node which k occupied, return NULL if NONE
     Node *NodeByKey(Value &k);
     // A new key
     Node *NewKeyNode(Value &k);
+    // Check a node if should be in it's position
+    inline bool Really(Node *n) { return HashNode(n->key()) == n; }
 
+private:
     Node    *_items;
     uint16_t _size;
     uint16_t _free;

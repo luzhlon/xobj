@@ -5,220 +5,224 @@
 #include "xobj_dict.h"
 #include "xobj_str.h"
 
+#if (defined _WIN32) || (defined _WIN64)
 #include <WinSock2.h>
 #pragma comment(lib, "ws2_32.lib")
-#ifdef WIN32
 #else
 #endif
 
 using namespace xobj;
 
-//uint16_t _htons(int16_t s) { return htons(s); }
-//uint32_t _htonl(int32_t l) { return htonl(l); }
-//uint64_t _htonll(int32_t ll) { return htonll(ll); }
+inline uint8_t  hton(uint8_t b) { return b; }
+inline uint16_t hton(uint16_t s) { return htons(s); }
+inline uint32_t hton(uint32_t l) { return htonl(l); }
+inline uint64_t hton(uint64_t ll) { return htonll(ll); }
 
-uint16_t _htons(uint16_t s) { return htons(s); }
-uint16_t _ntohs(uint16_t s) { return ntohs(s); }
-uint32_t _htonl(uint32_t l) { return htonl(l); }
-uint32_t _ntohl(uint32_t l) { return ntohl(l); }
-uint64_t _htonll(uint64_t ll) { return htonll(ll); }
-uint64_t _ntohll(uint64_t ll) { return ntohll(ll); }
+inline uint8_t  ntoh(uint8_t b) { return b; }
+inline uint16_t ntoh(uint16_t s) { return ntohs(s); }
+inline uint32_t ntoh(uint32_t l) { return ntohl(l); }
+inline uint64_t ntoh(uint64_t ll) { return ntohll(ll); }
 
-#define WRITE16(I, P) *((uint16_t *)(P)) = _htons(I & 0xFFFF)
-#define WRITE32(I, P) *((uint32_t *)(P)) = _htonl(I & 0xFFFFFFFF)
-#define WRITE64(I, P) *((uint64_t *)(P)) = _htonll(I)
+enum {
+    PRE_FIXMAP = 0x80,
+    PRE_FIXARR = 0x90,
 
-static void toMsgPack(List *l, std::ostream& o) {
-    char buf[10];
-    if (l->len() < 0x10)
-        buf[0] = (0x90 | l->len()), o.write(buf, 1);
-    else if (l->len() < 0x10000)
-        buf[0] = 0xDC, WRITE16(l->len(), &buf[1]),
-        o.write(buf, 3);
-    else if (l->len() < 0x100000000)
-        buf[0] = 0xDD, WRITE32(l->len(), &buf[1]),
-        o.write(buf, 5);
-    for (auto i : *l)
-        xobj::toMsgPack(o, i);
-}
+    PRE_NEGINT = 0xE0,
 
-static void toMsgPack(Dict *d, std::ostream& o) {
-    char buf[10];
-    if (d->len() < 0x10)
-        buf[0] = (0x80 | d->len()), o.write(buf, 1);
-    else if (d->len() < 0x10000)
-        buf[0] = 0xDE, WRITE16(d->len(), &buf[1]),
-        o.write(buf, 3);
-    else if (d->len() < 0x100000000)
-        buf[0] = 0xDF, WRITE32(d->len(), &buf[1]),
-        o.write(buf, 5);
-    for (auto i : *d)
-        xobj::toMsgPack(o, i.key()), xobj::toMsgPack(o, i.value());
-}
+    V_NIL = 0xC0,
+    V_FALSE = 0xC2, V_TRUE = 0xC3,
+    V_BIN8 = 0xC4, V_BIN16 = 0xC5, V_BIN32 = 0xC6,
+    V_EXT8 = 0xC7, V_EXT16 = 0xC8, V_EXT32 = 0xC9,
+    V_FLOAT32 = 0xCA, V_FLOAT64 = 0xCB,
+    V_UINT8 = 0xCC, V_UINT16 = 0xCD, V_UINT32 = 0xCE, V_UINT64 = 0xCF,
+    V_INT8 = 0xD0, V_INT16 = 0xD1, V_INT32 = 0xD2, V_INT64 = 0xD3,
+    V_FIXEXT1 = 0xD4,
+    V_FIXEXT2 = 0xD5,
+    V_FIXEXT4 = 0xD6,
+    V_FIXEXT8 = 0xD7,
+    V_FIXEXT16 = 0xD8,
+    V_STR8 = 0xD9, V_STR16 = 0xDA, V_STR32 = 0xDB,
+    V_ARR16 = 0xDC, V_ARR32 = 0xDD,
+    V_MAP16 = 0xDE, V_MAP32 = 0xDF,
+};
 
-static void toMsgPack(Number *n, std::ostream& o) {
-    char buf[10];
-    if (n->isint()) {       // Integer
-        if (n->i < 0x10000) {
-            if (n->i < 0) {
-                if (n->i > -33)
-                    buf[0] = n->i & 0xFF, o.write(buf, 1);
-                else if (n->i >= (int64_t)(int8_t)0x80)
-                    buf[0] = 0xD0, buf[1] = n->i & 0xFF, o.write(buf, 2);
-                else if (n->i >= (int64_t)(int16_t)0x8000)
-                    buf[0] = 0xD1, WRITE16(n->i, &buf[1]), o.write(buf, 3);
-                else if (n->i >= (int64_t)(int32_t)0x80000000)
-                    buf[0] = 0xD2, WRITE32(n->i, &buf[1]), o.write(buf, 5);
-                else
-                    buf[0] = 0xD3, WRITE64(n->i, &buf[1]), o.write(buf, 9);
-            } else if (n->i < 0x80)
-                buf[0] = n->i & 0xFF, o.write(buf, 1);
-            else if (n->i < 0x100)
-                buf[0] = 0xCC, buf[1] = n->i & 0xFF,
-                o.write(buf, 2);
-            else
-                buf[0] = 0xCD, WRITE16(n->i, &buf[1]), o.write(buf, 3);
-        } else if (n->i < 0x100000000)
-            buf[0] = 0xCE, WRITE32(n->i, &buf[1]), o.write(buf, 5);
-        else
-            buf[0] = 0xCF, WRITE64(n->i, &buf[1]), o.write(buf, 9);
-    } else                  // Float Number
-        buf[0] = 0xCB,
-        *(uint64_t *)&buf[1] = _htonll(*(uint64_t *)(&n->f)), o.write(buf, 9);
-}
-
-static void toMsgPack(String *s, std::ostream& o) {
-    char buf[10];
-    if (s->isbin()) {
-        if (s->len() < 0x100)
-            buf[0] = 0xC4, buf[1] = s->len(),
-            o.write(buf, 2);
-        else if (s->len() < 0x10000)
-            buf[0] = 0xC5, WRITE16(s->len(), &buf[1]),
-            o.write(buf, 3);
-        else if (s->len() < 0x100000000)
-            buf[0] = 0xC6, WRITE32(s->len(), &buf[1]),
-            o.write(buf, 5);
-    } else if (s->len() < 0x20)
-        buf[0] = (0xA0 | s->len()) & 0xFF, o.write(buf, 1);
-    else if (s->len() < 0x100)
-        buf[0] = 0xD9, buf[1] = s->len(), o.write(buf, 2);
-    else if (s->len() < 0x10000)
-        buf[0] = 0xDA, WRITE16(s->len(), &buf[1]), o.write(buf, 3);
-    else if (s->len() < 0x100000000)
-        buf[0] = 0xDB, WRITE32(s->len(), &buf[1]), o.write(buf, 5);
-
-    o.write(s->c_str(), s->len());
-}
-
-namespace xobj {
-
-void toMsgPack(std::ostream& o, Value& v) {
-    switch (v.type()) {
-    case TV_NIL:
-        o << "\xC0";
-        break;
-    case TV_BOOL:
-        o << v._bool()->val() ? "\xC2" : "\xC3";
-        break;
-    case TV_NUMBER:
-        ::toMsgPack(v.num(), o);
-        break;
-    case TV_STRING:
-        ::toMsgPack(v.str(), o);
-        break;
-    case TV_LIST:
-        ::toMsgPack(v.list(), o);
-        break;
-    case TV_DICT:
-        ::toMsgPack(v.dict(), o);
-        break;
-    default:
-        break;
+struct Buf {
+    Buf(ostream& o) {
+        p = &buf[1]; os = &o;
     }
+
+    operator bool() {
+        return success;
+    }
+
+    template<typename T>
+    inline void write(uint8_t pre, T len) {
+        buf[0] = pre;
+        *(T *)&buf[1] = hton(len);
+        success = os->write(buf, sizeof(T) + 1) ?
+                    true : false;
+    }
+
+    inline void write_b(uint8_t pre) {
+        buf[0] = pre;
+        success = os->write(buf, 1) ?
+                    true : false;
+    }
+    inline void write8(uint8_t pre, uint8_t len) {
+        write<uint8_t>(pre, len);
+    }
+    inline void write16(uint8_t pre, uint16_t len) {
+        write<uint16_t>(pre, len);
+    }
+    inline void write32(uint8_t pre, uint32_t len) {
+        write<uint32_t>(pre, len);
+    }
+    inline void write64(uint8_t pre, uint64_t len) {
+        write<uint64_t>(pre, len);
+    }
+
+    union {
+        char *p;
+        uint8_t *pb;
+        uint16_t *ps;
+        uint32_t *pl;
+        uint64_t *pll;
+    };
+    ostream *os;
+    char buf[10];
+    bool success = false;
+};
+
+static bool pack(List l, ostream& o) {
+    Buf buf(o);
+    if (l.len() < 0x10)                 // fixarray
+        buf.write_b(PRE_FIXARR | l.len());
+    else if (l.len() < 0x10000)         // array 16
+        buf.write16(V_ARR16, l.len());
+    else if (l.len() < 0x100000000)     // array 32
+        buf.write32(V_ARR32, l.len());
+    if (!buf)
+        return false;
+    for (auto i : l)
+        if (!mp_pack(i, o))
+            return false;
+    return true;
 }
 
-static Value readstr(std::istream& i, size_t len) {
-    Value str = String::New(i, len);
-    return str;
+static bool pack(Dict &d, ostream& o) {
+    Buf buf(o);
+
+    if (d.len() < 0x10)
+        buf.write_b(PRE_FIXMAP | d.len());
+    else if (d.len() < 0x10000)
+        buf.write16(V_MAP16, d.len());
+    else if (d.len() < 0x100000000)
+        buf.write16(V_MAP32, d.len());
+
+    if (!buf)
+        return false;
+    for (auto i : d)
+        if (!(mp_pack(i.key(), o) && mp_pack(i.value(), o)))
+            return false;
+    return true;
 }
-static Value readarray(std::istream& i, size_t len) {
+
+static bool pack(int64_t i, ostream& o) {
+    Buf buf(o);
+
+    if (i < 0x10000) {              // int16 && negative
+        if (i < 0) {                // negative int
+            if (i > -33)                    // negative fixint
+                buf.write_b(i & 0xFF);
+            else if (i >= (int64_t)(int8_t)0x80)
+                buf.write8(V_INT8, i & 0xFF);
+            else if (i >= (int64_t)(int16_t)0x8000)
+                buf.write16(V_INT16, i);    // int 16
+            else if (i >= (int64_t)(int32_t)0x80000000)
+                buf.write32(V_INT32, i);    // int 32
+            else
+                buf.write64(V_INT64, i);    // int 64
+        } else if (i < 0x80)                // fixint
+            buf.write_b(i & 0xFF);
+        else if (i < 0x100)                 // uint 8
+            buf.write8(V_UINT8, i & 0xFF);
+        else                                // uint 16
+            buf.write16(V_UINT16, i);
+    } else if (i < 0x100000000)             // uint 32
+        buf.write32(V_UINT32, i);
+    else                                    // uint 64
+        buf.write64(V_UINT64, i);
+
+    return buf;
+}
+
+static bool pack(double f, ostream& o) {
+    Buf buf(o);
+    buf.write64(V_FLOAT64, *(uint64_t *)(&f));
+    return buf;
+}
+
+static bool pack(String &s, ostream& o) {
+    Buf buf(o);
+    auto len = s.len();
+    char b8 = V_STR8, b16 = V_STR16, b32 = V_STR32;
+    if (s.isbin())
+        b8 = V_BIN8, b16 = V_BIN16, b32 = V_BIN32;
+
+    if (len < 0x20)
+        buf.write_b((0xA0 | len) & 0xFF);
+    else if (len < 0x100)
+        buf.write8(b8, len);
+    else if (len < 0x10000)
+        buf.write16(b16, len);
+    else if (len < 0x100000000)
+        buf.write32(b32, len);
+
+    return buf ?
+        (bool)o.write(s.c_str(), len) : false;
+}
+
+static Value readstr(istream& i, size_t len) {
+    auto str = String::New(i, len);
+    str->isbin(false); return Value::V(str);
+}
+static Value readbin(istream& i, size_t len) {
+    auto str = String::New(i, len);
+    str->isbin(true); return Value::V(str);
+}
+static Value readarray(istream& i, size_t len) {
     auto l = L();
     for (Value v; len--; l += v)
-        if (!fromMsgPack(i, v))
+        if (!mp_unpack(v, i))
             return Value::Nil;
     return l;
 }
-static Value readmap(std::istream& i, size_t len) {
+static Value readmap(istream& i, size_t len) {
     auto d = D();
     Value k, v;
     while (len--) {
-        if (!fromMsgPack(i, k))
+        if (!mp_unpack(k, i))
             return Value::Nil;
-        if (!fromMsgPack(i, v))
+        if (!mp_unpack(v, i))
             return Value::Nil;
         d.set(k, v);
     }
     return d;
 }
 
-static bool read(std::istream& i, float &f) {
-    if (!i.read((char *)&f, sizeof(f)))
-        return false;
-    *(uint32_t *)&f = _ntohl(*(uint32_t *)&f);
-    return true;
+template <typename T>
+static bool unpack(istream& i, T& n) {
+    return i.read((char *)&n, sizeof(n)) ?
+        (n = ntoh(n), true) : false;
 }
-static bool read(std::istream& i, double &f) {
-    if (!i.read((char *)&f, sizeof(f)))
-        return false;
-    *(uint64_t *)&f = _ntohll(*(uint64_t *)&f);
-    return true;
+static bool unpack(istream& i, float &f) {
+    return unpack(i, (uint32_t &)f);
 }
-static bool read(std::istream& i, uint8_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    return true;
-}
-static bool read(std::istream& i, uint16_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohs(n); return true;
-}
-static bool read(std::istream& i, uint32_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohl(n); return true;
-}
-static bool read(std::istream& i, uint64_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohll(n); return true;
-}
-static bool read(std::istream& i, int8_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    return true;
-}
-static bool read(std::istream& i, int16_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohs(n); return true;
-}
-static bool read(std::istream& i, int32_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohl(n); return true;
-}
-static bool read(std::istream& i, int64_t &n) {
-    if (!i.read((char *)&n, sizeof(n)))
-        return false;
-    n = _ntohll(n); return true;
+static bool unpack(istream& i, double &f) {
+    return unpack(i, (uint64_t &)f);
 }
 
-bool fromMsgPack(std::istream& i, Value &v) {
-    char c;
-    if (!i.read(&c, 1))
-        return false;
+static bool unpackvar(istream& i, unsigned char n, Value& v) {
     union {
         float f; double d;
         int8_t b; uint8_t ub;
@@ -226,106 +230,135 @@ bool fromMsgPack(std::istream& i, Value &v) {
         int32_t l; uint32_t ul;
         int64_t ll; uint64_t ull;
     } val;
-    if (c & 0x80) {
-        // Negative fixint
-        if ((c & 0xE0) == 0xE0) {
-            v = new Number((int64_t)c);
-            return true;
-        }
-        unsigned char n = c;
-        if (n < 0xC0) switch (n & 0xF0) {
-            case 0x80:                  // fixmap
-                v = readmap(i, c & 0x0F);
-                return v ? true: false;
-            case 0x90:                  // fixarr
-                v = readarray(i, c & 0x0F);
-                return v ? true: false;
-            default:                    // fixstr
-                v = readstr(i, c & 0x1F);
-                return v ? true: false;
-        } else switch (n) {
-            case 0xC0:                  // Nil
-                v = Value::Nil; return true;
-            case 0xC2:                  // False
-                v = Value::False; return true;
-            case 0xC3:                  // True;
-                v = Value::True; return true;
-            case 0xC4:                  // bin 8
-            case 0xC5:                  // bin 16
-            case 0xC6:                  // bin 32
-            case 0xC7:                  // ext 8
-            case 0xC8:                  // ext 16
-            case 0xC9:                  // ext 32
-                return false;
-            case 0xCA:// float 32
-                if (!read(i, val.f)) return false;
-                v = new Number(val.f); return true;
-            case 0xCB:// float 64
-                if (!read(i, val.d)) return false;
-                v = new Number(val.d); return true;
-            case 0xCC:// uint 8
-                if (!read(i, val.ub)) return false;
-                v = new Number((int64_t)val.ub); return true;
-            case 0xCD:// uint 16
-                if (!read(i, val.us)) return false;
-                v = new Number((int64_t)val.us); return true;
-            case 0xCE:// uint 32
-                if (!read(i, val.ul)) return false;
-                v = new Number((int64_t)val.ul); return true;
-            case 0xCF:// uint 64
-                if (!read(i, val.ull)) return false;
-                v = new Number((int64_t)val.ull); return true;
-            case 0xD0:// int 8
-                if (!read(i, val.b)) return false;
-                v = new Number((int64_t)val.b); return true;
-            case 0xD1:// int 16
-                if (!read(i, val.s)) return false;
-                v = new Number((int64_t)val.s); return true;
-            case 0xD2:// int 32
-                if (!read(i, val.l)) return false;
-                v = new Number((int64_t)val.l); return true;
-            case 0xD3:// int 64
-                if (!read(i, val.ll)) return false;
-                v = new Number(val.ll); return true;
-            case 0xD4:
-            case 0xD5:
-            case 0xD6:
-            case 0xD7:
-            case 0xD8:
-                return false;
-            case 0xD9:// str 8
-                if (!read(i, val.ub)) return false;
-                v = readstr(i, val.ub);
-                return v ? true : false;
-            case 0xDA:// str 16
-                if (!read(i, val.us)) return false;
-                v = readstr(i, val.us);
-                return v ? true : false;
-            case 0xDB:// str 32
-                if (!read(i, val.ul)) return false;
-                v = readstr(i, val.ul);
-                return v ? true : false;
-            case 0xDC:// array 16
-                if (!read(i, val.us)) return false;
-                v = readarray(i, val.us);
-                return v ? true : false;
-            case 0xDD:// array 32
-                if (!read(i, val.ul)) return false;
-                v = readarray(i, val.ul);
-                return v ? true : false;
-            case 0xDE:// map 16
-                if (!read(i, val.us)) return false;
-                v = readmap(i, val.ul);
-                return v ? true : false;
-            case 0xDF:// map 32
-                if (!read(i, val.ul)) return false;
-                v = readmap(i, val.ul);
-                return v ? true : false;
-            default:
-                return false;
-        }
-    } else          // Positive fixint
-        v = new Number((int64_t)c);
+    switch (n) {
+        case V_BIN8:
+            return unpack(i, val.ub) ?
+                (v = readbin(i, val.ub), (bool)v) : false;
+        case V_BIN16:
+            return unpack(i, val.us) ?
+                (v = readbin(i, val.us), (bool)v) : false;
+        case V_BIN32:
+            return unpack(i, val.ul) ?
+                (v = readbin(i, val.ul), (bool)v) : false;
+        case V_FLOAT32:
+            return unpack(i, val.f) ?
+                (v = Value(val.f), true) : false;
+        case V_FLOAT64:
+            return unpack(i, val.d) ?
+                (v = Value(val.d), true) : false;
+        case V_UINT8:
+            return unpack(i, val.ub) ?
+                (v = Value((int64_t)val.ub), true) : false;
+        case V_UINT16:
+            return unpack(i, val.us) ?
+                (v = Value((int64_t)val.us), true) : false;
+        case V_UINT32:
+            return unpack(i, val.ul) ?
+                (v = Value((int64_t)val.ul), true) : false;
+        case V_UINT64:
+            return unpack(i, val.ull) ?
+                (v = Value((int64_t)val.ull), true) : false;
+        case V_INT8:
+            return unpack(i, val.ub) ?
+                (v = Value((int64_t)val.b), true) : false;
+        case V_INT16:
+            return unpack(i, val.us) ?
+                (v = Value((int64_t)val.s), true) : false;
+        case V_INT32:
+            return unpack(i, val.ul) ?
+                (v = Value((int64_t)val.l), true) : false;
+        case V_INT64:
+            return unpack(i, val.ull) ?
+                (v = Value(val.ll), true) : false;
+        case V_STR8:
+            return unpack(i, val.ub) ?
+                (v = readstr(i, val.ub), (bool)v) : false;
+        case V_STR16:
+            return unpack(i, val.us) ?
+                (v = readstr(i, val.us), (bool)v) : false;
+        case V_STR32:
+            return unpack(i, val.ul) ?
+                (v = readstr(i, val.ul), (bool)v) : false;
+        case V_ARR16:
+            return unpack(i, val.us) ?
+                (v = readarray(i, val.us), (bool)v) : false;
+        case V_ARR32:
+            return unpack(i, val.ul) ?
+                (v = readarray(i, val.ul), (bool)v) : false;
+        case V_MAP16:
+            return unpack(i, val.us) ?
+                (v = readmap(i, val.ul), (bool)v) : false;
+        case V_MAP32:
+            return unpack(i, val.ul) ?
+                (v = readmap(i, val.ul), (bool)v) : false;
+        default: /*
+            case V_EXT8: case V_EXT16: case V_EXT32:
+            case V_FIXEXT1: case V_FIXEXT2:
+            case V_FIXEXT4: case V_FIXEXT8:
+            case V_FIXEXT16: // */
+            return false;
+    }
+    return false;
+}
+static bool unpackfix(istream& i, unsigned char n, Value& v) {
+    size_t len = n & 0x0F;
+    if (n < 0xC0) switch (n & 0xF0) {
+        case PRE_FIXMAP:
+            v = readmap(i, len); break;
+        case PRE_FIXARR:
+            v = readarray(i, len); break;
+        default:            // fixstr (0xA0 - 0xBF, 101xxxxx)
+            v = readstr(i, n & 0x1F); break;
+    } else switch (n) {
+        case V_NIL:
+            return (v = Value::Nil, true);
+        case V_FALSE:
+            return (v = Value::False, true);
+        case V_TRUE:
+            return (v = Value::True, true);
+        default:
+            return (v = Value::Nil, false);
+    }
+    return !v.isnil();
+}
+
+namespace xobj {
+
+bool mp_pack(Value& v, ostream& o) {
+    char c;
+    switch (v.type()) {
+    case TV_NIL:
+        c = V_NIL;
+        return o.write(&c, 1) ? true : false;
+    case TV_BOOL:
+        c = v.b().val() ? V_TRUE : V_FALSE;
+        return o.write(&c, 1) ? true : false;
+    case TV_INT:
+        return ::pack(v.i().val(), o);
+    case TV_FLOAT:
+        return ::pack(v.f().val(), o);
+    case TV_STRING:
+        return ::pack(v.s(), o);
+    case TV_LIST:
+        return ::pack(v.l(), o);
+    case TV_DICT:
+        return ::pack(v.d(), o);
+    default:
+        return false;
+    }
+}
+
+bool mp_unpack(Value& v, istream& i) {
+    union { char c; unsigned char n; };
+    if (!i.read(&c, 1)) return false;
+    if (n < 0x80)                       // Positive fixint
+        v = Value((int64_t)n);
+    else if ((n & 0xE0) == 0xE0)        // Negative fixint
+        v = Value((int64_t)c);
+    else if (n < 0xC4)
+        return unpackfix(i, n, v);
+    else
+        return unpackvar(i, n, v);
     return true;
 }
 

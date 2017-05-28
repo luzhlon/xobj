@@ -9,15 +9,14 @@ namespace xobj {
 static inline
 bool isvalid(Dict::Node *node) { return node && !node->empty(); }
 
-String *Dict::get(char *str, size_t len) {
-    auto hash = _gethash(str, len);
+String *Dict::get(char *str, size_t len, hash_t hash) {
     auto node = HashNode(hash);
     if (!isvalid(node)) return nullptr;
     auto p = node;
     do {
         auto k = p->key();
-        if (k.isstr() == k.str()->equals(str, len))
-            return k.str();
+        if (k.isstr() && k.s().equals(str, len))
+            return &k.s();
         p = p->Next();
     } while (p != node);
     return nullptr;
@@ -42,7 +41,7 @@ Dict::Node *Dict::NewKeyNode(Value &k) {
             rehash();
             return NewKeyNode(k);
         }
-        if (HashNode(node->key()) == node) {
+        if (Really(node)) {
             // 需要将新节点链入
             idle->set(k);
             Link(node, idle);
@@ -115,7 +114,8 @@ Dict::Node *Dict::GetIdleNode() {
 
 Dict::Node *Dict::NodeByKey(Value &k) {
     auto node = HashNode(k);
-    return isvalid(node) ? FindNode(node, k) : nullptr;
+    return isvalid(node) && Really(node) ?
+                FindNode(node, k) : nullptr;
 }
 
 void Dict::Link(Node *o, Node *n) {
