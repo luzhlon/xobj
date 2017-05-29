@@ -16,26 +16,28 @@ struct Value {
     template<typename T> inline static
         Value V(T v) { Value val(v); return val; }
 
-    Value() { _obj = nullptr; }
-    Value(const Value &v) { _obj = v._obj; incref(); }
+    Value() = default;
     ~Value() { decref(); }
+
+    Value(const Value &v) {
+        refer(v._obj);
+    }
     Value& operator=(Value &v) {
-        decref();   // original reference --
-        _obj = v._obj;
-        incref();   // new reference ++
-        return *this;
+        refer(v._obj); return *this;
     }
 
     Value(bool b);
     Value(int64_t i);
     Value(double n);
     Value(char *str, size_t len);
-    Value(Object *obj) { setobj(obj); }
+    Value(Object *obj) { refer(obj); }
     Value(int32_t i) : Value((int64_t)i) {}
     Value(float n) : Value((double)n) {}
     Value(char *str) : Value(str, strlen(str)) {}
     Value(const char *str) : Value((char *)str) {}
     Value(const char *str, size_t len) : Value((char *)str, len) {}
+    // reference a object
+    void refer(Object *o) { decref(); _obj = o; incref(); }
 
     inline type_t type() const { return _obj ? _obj->type() : TV_NIL; }
 
@@ -79,7 +81,6 @@ struct Value {
     Value& operator-=(const Value &v) { return operator-=((Value &)v); }
     bool operator==(const Value &v) const { return operator==((Value &)v); }
 
-    void setobj(Object *o) { decref(); _obj = o; incref(); }
     inline Object&  o() const { return *_obj; }
     inline List&    l() const { return *(List *)_obj; }
     inline String&  s() const { return *(String *)_obj; }
@@ -91,7 +92,7 @@ struct Value {
     // get pointer
     void *p() const;
 
-    hash_t gethash() { return isnil() ? _obj->hash(): 0; }
+    hash_t gethash() { return isnil() ? 0 : _obj->hash(); }
 
 private:
     void incref() { if (!isnil()) _obj->incref(); }          // reference ++
@@ -103,12 +104,8 @@ private:
 
 typedef Value V;
 
-// Value operator""_s(const char *str, size_t len);
-//template <typename T> inline Value V(T v) { return Value::V(v); }
 // Return a integer stores a pointer
 Value P(void *p);
-
-std::ostream& operator<<(std::ostream&, const Value&);
 
 }
 

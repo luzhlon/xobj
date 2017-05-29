@@ -10,47 +10,43 @@ static inline
 bool isvalid(Dict::Node *node) { return node && !node->empty(); }
 
 String *Dict::get(char *str, size_t len, hash_t hash) {
-    auto node = HashNode(hash);
+    auto node = getnode(hash);
     if (!isvalid(node)) return nullptr;
     auto p = node;
     do {
         auto k = p->key();
         if (k.isstr() && k.s().equals(str, len))
             return &k.s();
-        p = p->Next();
+        p = p->next();
     } while (p != node);
     return nullptr;
 }
 
 void Dict::set(Value &k, Value &v) {
     if (k.isnil()) return;
-    auto node = NodeByKey(k);
+    auto node = getnode(k);
     if (!node)
-        node = NewKeyNode(k);
+        node = newkey(k);
     node->value() = v;
 }
 
-Dict::Node *Dict::NewKeyNode(Value &k) {
-    checkitems();
-    auto node = HashNode(k);
+Dict::Node *Dict::newkey(Value &k) {
+    auto node = getnode(k.gethash(), true);
     if (node->empty())
         node->key() = k;
     else {
-        auto idle = GetIdleNode();
+        auto idle = idlenode();
         if (!idle) {
             rehash();
-            return NewKeyNode(k);
+            return newkey(k);
         }
-        if (Really(node)) {
-            // 需要将新节点链入
-            idle->set(k);
-            Link(node, idle);
+        if (really(node))
+            idle->key() = k,        // idle is the new node
+            node->linkin(idle),     // link idle into node
             node = idle;
-        } else {
-            // 该节点已被占用，但不该在这里，需要移动该节点
-            MoveNode(node, idle);
+        else                        // node is occupied, but it shouldn't be here
+            node->moveto(idle),
             node->init(k);
-        }
     }
     _size++;
     return node;
@@ -105,57 +101,11 @@ void Dict::rehash() {
 /*     return tp; */
 /* } */
 
-Dict::Node *Dict::GetIdleNode() {
+Dict::Node *Dict::idlenode() {
     while (_free)
         if (_items[--_free].empty())
             return &_items[_free];
     return nullptr;
-}
-
-Dict::Node *Dict::NodeByKey(Value &k) {
-    auto node = HashNode(k);
-    return isvalid(node) && Really(node) ?
-                FindNode(node, k) : nullptr;
-}
-
-void Dict::Link(Node *o, Node *n) {
-    n->Prev(o);
-    n->Next(o->Next());
-    o->Next()->Prev(n);
-    o->Next(n);
-}
-
-void Dict::MoveNode(Node *src, Node *dst) {
-    auto nx = src->Next();
-    auto pr = src->Prev();
-    *dst = *src;
-    dst->Next(nx);
-    dst->Prev(pr);
-    nx->Prev(dst);
-    pr->Next(dst);
-}
-
-Dict::Node *Dict::FindNode(Node *n, Value &k) {
-    auto p = n;
-    do {
-        if (p->key() == k)
-            return p;
-        p = p->Next();
-    } while (p != n);
-    return nullptr;
-}
-
-std::ostream& operator<<(std::ostream& o, const Dict& d) {
-    o << '{';
-    auto it = d.begin();
-    auto ed = d.end();
-    if (it != ed)
-    while (1) {
-        o << (*it).key() << ':' << (*it).value(), ++it;
-        if (it != ed) o << ','; else break;
-    }
-    o << '}';
-    return o;
 }
 
 }

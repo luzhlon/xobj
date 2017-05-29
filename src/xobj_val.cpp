@@ -15,10 +15,10 @@ Value Value::False(false);
 Bool Bool::True(true);
 Bool Bool::False(false);
 
-Value::Value(bool b) { setobj(b ? &Bool::True : &Bool::False); }
-Value::Value(int64_t i) { setobj(new Int(i)); }
-Value::Value(double n) { setobj(new Float(n)); }
-Value::Value(char *str, size_t len) { setobj(String::New(str, len)); }
+Value::Value(bool b) { refer(b ? &Bool::True : &Bool::False); }
+Value::Value(int64_t i) { refer(new Int(i)); }
+Value::Value(double n) { refer(new Float(n)); }
+Value::Value(char *str, size_t len) { refer(String::New(str, len)); }
 
 int Value::len() {
     switch (type()) {
@@ -89,33 +89,6 @@ int Value::count(Value &v) {
         return l().count(v);
     }
     return -1;
-}
-
-std::ostream& operator<<(std::ostream& o, const Value& v) {
-    switch (v.type()) {
-    case TV_NIL:
-        o << "nil";
-        break;
-    case TV_INT:
-        o << v.i();
-        break;
-    case TV_FLOAT:
-        o << v.f();
-        break;
-    case TV_STRING:
-        o << v.s();
-        break;
-    case TV_BOOL:
-        o << (v.b().val() ? "true": "false");
-        break;
-    case TV_LIST:
-        o << v.l();
-        break;
-    case TV_DICT:
-        o << v.d();
-        break;
-    }
-    return o;
 }
 
 Value P(void *p) { return V((int64_t)p); }

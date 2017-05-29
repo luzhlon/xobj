@@ -1,4 +1,6 @@
 #include <ctype.h>
+#include <istream>
+
 #include "xobj_str.h"
 #include "xobj_dict.h"
 #include "xobj_val.h"
@@ -26,8 +28,6 @@ _StrAttr _getstrattr(char *data, size_t len) {
 
 uint32_t _gethash(char *data, size_t len) { return _getstrattr(data, len).hash; }
 
-// Value operator""_s(const char *str, size_t len) { return Value::V(new String(str)); }
-
 String *String::New(char *data, size_t len) {
     String *str = nullptr;
     auto attr = _getstrattr(data, len);
@@ -44,7 +44,9 @@ String *String::New(char *data, size_t len) {
     return vstr;
 }
 
-String *String::New(std::istream& in, size_t n) {
+using namespace std;
+
+String *String::New(istream& in, size_t n) {
     auto size = offsetof(VarStr, data) + n + 1;
     auto str = (VarStr *)(new char[size]);
     // Read string from stream failure
@@ -97,69 +99,6 @@ bool String::operator==(Value &v) const {
 bool String::equals(char *str, size_t n) {
     return n == len() ?
         !memcmp(c_str(), str, n) : false;
-}
-static void print_hex(std::ostream& o, unsigned char c) {
-    char buf[8];
-    sprintf(buf, "\\x%02x", c); o << buf;
-}
-static void print_char(std::ostream& o, unsigned char c) {
-    switch (c) {
-    case '\a':
-        o << "\\a";
-        break;
-    case '\b':
-        o << "\\b";
-        break;
-    case '\f':
-        o << "\\f";
-        break;
-    case '\n':
-        o << "\\n";
-        break;
-    case '\r':
-        o << "\\r";
-        break;
-    case '\t':
-        o << "\\t";
-        break;
-    case '\v':
-        o << "\\v";
-        break;
-    case '\\':
-        o << "\\";
-        break;
-    case '\"':
-        o << "\\\"";
-        break;
-    default:
-        if (c < ' ')
-            print_hex(o, c);
-        else
-            o << c;
-        break;
-    }
-}
-
-void _print_bin(std::ostream& o, const char *data, size_t len) {
-    const char *end = data + len;
-    for (const char *p = data; p < end; p++)
-        if (((unsigned char)*p) > 0x7F)
-            print_hex(o, *p);
-        else
-            print_char(o, *p);
-}
-
-void _print_str(std::ostream& o, const char *data, size_t len) {
-    const char *end = data + len;
-    for (const char * p = data; p < end; p++)
-        print_char(o, *p);
-}
-
-std::ostream& operator<<(std::ostream& o, const String& s) {
-    o << '"';
-    _print_str(o, s.c_str(), s.len());
-    o << '"';
-    return o;
 }
 
 }

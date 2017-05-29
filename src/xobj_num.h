@@ -6,11 +6,7 @@
 
 namespace xobj {
 
-struct Number: public Object {
-    void release() override { delete this; }
-};
-
-struct Int: public Number {
+struct Int: public Object {
     Int(int64_t i) { this->i = i; }
 
     inline int64_t val() const { return i; }
@@ -18,19 +14,16 @@ struct Int: public Number {
     hash_t hash() const override { return i; }
     type_t type() const override { return TV_INT; }
     operator bool() const override { return val() != 0; }
+    void release() override { delete this; }
     bool operator==(Value &v) const override {
         return v.isint() && val() == v.i().val();
-    }
-
-    friend std::ostream& operator<<(std::ostream& o, const Int& n) {
-        o << n.i; return o;
     }
 
 private:
     int64_t i;
 };
 
-struct Float : public Number {
+struct Float : public Object {
     Float(double f) { this->f = f; }
 
     inline double val() const { return f; }
@@ -38,12 +31,9 @@ struct Float : public Number {
     hash_t hash() const override { return *(hash_t *)&f; }
     type_t type() const override { return TV_FLOAT; }
     operator bool() const override { return val() != 0.0; }
+    void release() override { delete this; }
     bool operator==(Value &v) const override {
         return v.isfloat() && val() == v.f().val();
-    }
-
-    friend std::ostream& operator<<(std::ostream& o, const Float& f) {
-        o << f.f; return o;
     }
 
 private:

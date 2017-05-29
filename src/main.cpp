@@ -7,6 +7,8 @@
 #include "xobj_dict.h"
 #include "xobj_mp.h"
 #include "xobj_str.h"
+#include "xobj_num.h"
+#include "xobj_out.h"
 
 #include "tstream.h"
 
@@ -76,6 +78,13 @@ public:
 };
 
 int main(int argc, char **argv) {
+    cout << sizeof(Value) << endl
+        << sizeof(Object) << endl
+        << sizeof(Int) << endl
+        << sizeof(Float) << endl
+        << sizeof(String) << endl
+        << sizeof(List) << endl
+        << sizeof(Dict) << endl;
     auto test = new Test;
     test->test_pointer();
     test->test_internal();

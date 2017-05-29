@@ -1,7 +1,6 @@
 #ifndef __XOBJ_STR_H__
 #define __XOBJ_STR_H__
 
-#include <iostream>
 #include "xobj_obj.h"
 
 namespace xobj {
@@ -14,14 +13,9 @@ struct _StrAttr {
 _StrAttr _getstrattr(char *data, size_t len);
 uint32_t _gethash(char *data, size_t len);
 
-void _print_str(std::ostream& o, const char *data, size_t len);
-void _print_bin(std::ostream& o, const char *data, size_t len);
-
 struct String: public Object {
     static String *New(char *str, size_t len);
     static String *New(std::istream& in, size_t len);
-
-    friend std::ostream& operator<<(std::ostream&, const String&);
 
     inline size_t len() const { return _ex.u32; }
     bool equals(char *str, size_t len);

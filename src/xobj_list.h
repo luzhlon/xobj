@@ -37,20 +37,6 @@ struct List: public Object, public std::vector<Value> {
         return v.islist() && this == &v.l();
     }
 
-    friend std::ostream& operator<<(std::ostream& o, const List& l) {
-        o << '[';
-        auto len = l.len();
-        auto p = l.valist();
-        if (len) {
-            int i = 0;
-            o << p[i++];
-            while (i < len)
-                o << ',' << p[i++];
-        }
-        o << ']';
-        return o;
-    }
-
     const Value *valist() const { return &front(); }
 };
 

@@ -21,25 +21,45 @@ struct Dict: public Object {
         friend struct Dict;
 
         inline void init(Value &k, Value &v = Value::Nil) {
-            set(k, v); prev = next = 0;
+            key() = k;
+            value() = v;
+            _prev = _next = 0;
         }
-        inline void set(Value &k, Value &v = Value::Nil) {
-            key() = k; value() = v;
+        // Move this node to n
+        void moveto(Node *n) {
+            n->init(key(), value());
+            auto nx = next(), pr = prev();
+            if (nx != this)     // next is valid
+                n->setnext(nx), nx->setprev(n);
+            if (pr != this)     // previous is valid
+                n->setprev(pr), pr->setnext(n);
         }
-        inline Node& operator=(Node &n) {
-            key() = n.key(); value() = n.value();
-            return *this;
+        // Link node n into this linklist
+        void linkin(Node *n) {
+            n->setprev(this);
+            n->setnext(next());
+            next()->setprev(n);
+            setnext(n);
         }
-        inline Node *Next() { return this+next; }
-        inline Node *Prev() { return this+prev; }
-        inline void  Next(Node *n) { next = n - this; }
-        inline void  Prev(Node *n) { prev = n - this; }
+        // Find k in this linklist
+        Node *find(Value& k) {
+            auto p = this;
+            do {
+                if (p->key() == k)
+                    return p;
+            } while ((p = p->next(), p != this));
+            return nullptr;
+        }
+        inline Node *next() { return this + _next; }
+        inline Node *prev() { return this + _prev; }
+        inline void  setnext(Node *n) { _next = n - this; }
+        inline void  setprev(Node *n) { _prev = n - this; }
 
     private:
         Value _key;     // key
         Value _val;     // value
-        int   prev = 0;
-        int   next = 0;
+        int   _prev = 0;
+        int   _next = 0;
     };
 
     struct Iterator {
@@ -63,7 +83,7 @@ struct Dict: public Object {
     void set(const Value &k, const Value &v) { set((Value &)k, (Value &)v); }
     Value get(Value &k) {
         if (k.isnil()) return Value::Nil;
-        auto node = NodeByKey(k);
+        auto node = getnode(k);
         return node ? node->value() : Value::Nil;
     }
     Value get(const Value &k) { return get((Value &)k); }
@@ -83,8 +103,6 @@ struct Dict: public Object {
     Iterator begin() const { return *(new Iterator(_items, _items+_capacity)); }
     Iterator end() const { return *(new Iterator(_items, _items+_capacity)); }
 
-    friend std::ostream& operator<<(std::ostream&, const Dict&);
-
 private:
     friend struct String;
     String *get(char *str, size_t len, hash_t hash);
@@ -96,27 +114,27 @@ private:
         _size = 0;
         _items = _capacity ? new Node[_capacity + 1]: nullptr;
     }
-    void checkitems() { if (!_capacity) alloc(1); }
     void rehash();
-    // 
-    inline Node *HashNode(uint32_t hash) {
-        return _capacity ? &_items[hash % _capacity]: nullptr;
-    }
-    Node *HashNode(Value &k) { return HashNode(k.gethash()); }
-    // Link new node n to o placed
-    void Link(Node *o, Node *n);
-    // Move the node
-    void MoveNode(Node *src, Node *dst);
     // Get a idle node, it's needed extend if return NULL
-    Node *GetIdleNode();
-    // Find node in links which k placed in
-    Node *FindNode(Node *n, Value &k);
-    // Node which k occupied, return NULL if NONE
-    Node *NodeByKey(Value &k);
+    Node *idlenode();
+    // Get node by hash
+    Node *getnode(hash_t hash, bool safe = false) {
+        if (_capacity)
+            return &_items[hash % _capacity];
+        return safe ? (alloc(1), getnode(hash)): nullptr;
+    }
+    // Get node by key
+    Node *getnode(Value &key) {
+        auto node = getnode(key.gethash());
+        return node && really(node) ?
+            node->find(key) : nullptr;
+    }
     // A new key
-    Node *NewKeyNode(Value &k);
+    Node *newkey(Value &k);
     // Check a node if should be in it's position
-    inline bool Really(Node *n) { return HashNode(n->key()) == n; }
+    inline bool really(Node *n) {
+        return getnode(n->key().gethash()) == n;
+    }
 
 private:
     Node    *_items;
@@ -126,8 +144,12 @@ private:
 };
 
 inline Value _D(Dict *d) { return Value::V(d); }
-template <typename T, typename T2, typename... Args> inline
-Value _D(Dict *d, T k, T2 v, Args... rest) { d->set(k, v); return _D(d, rest...); }
+
+template <typename T, typename T2, typename... Args>
+inline Value _D(Dict *d, T k, T2 v, Args... rest) {
+    d->set(k, v);
+    return _D(d, rest...);
+}
 
 template <typename... Args>
 Value D(Args... all) {
