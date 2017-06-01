@@ -10,22 +10,25 @@ namespace xobj {
 struct Object {
     static Object Nil;
 
-    Object() { _refs = 0; }
-
 protected:
     friend class Value;
 
+    virtual void release() = 0;
+    virtual bool operator==(const Value& v) const = 0;
     virtual hash_t hash() const { return (hash_t)this; }
     virtual type_t type() const = 0;
-    virtual void release() = 0;
-    virtual bool operator==(Value &v) const = 0;
     virtual operator bool() const = 0;
 
 private:
     friend class Value;
 
-    inline void incref() { _refs += 1; }
-    inline void decref() { if (!(--_refs)) this->release(); }
+    inline void incref() {
+        _refs ++;
+    }
+    inline void decref() {
+        if (!--_refs)
+            release();
+    }
 
 protected:
     union EX {
@@ -35,7 +38,7 @@ protected:
     } _ex;
 
 private:
-    uint32_t _refs;      // count of references
+    uint32_t _refs = 0;      // count of references
 };
 
 struct Bool: public Object {
@@ -48,7 +51,7 @@ struct Bool: public Object {
     type_t type() const override { return TV_BOOL; }
     hash_t hash() const override { return val() ? 1 : 0; }
     void release() override {}
-    bool operator==(Value& v) const override;
+    bool operator==(const Value& v) const override;
     operator bool() const override { return val(); }
 
     Bool(bool v) { val(v); }

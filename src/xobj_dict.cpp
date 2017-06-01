@@ -1,4 +1,5 @@
 #include <stdint.h>
+
 #include "xobj_dict.h"
 #include "xobj_str.h"
 
@@ -6,12 +7,14 @@ using namespace xobj;
 
 namespace xobj {
 
-static inline
-bool isvalid(Dict::Node *node) { return node && !node->empty(); }
+Value Dict::New(size_t size) {
+    return new Dict(size);
+}
 
 String *Dict::get(char *str, size_t len, hash_t hash) {
     auto node = getnode(hash);
-    if (!isvalid(node)) return nullptr;
+    if (!*node)
+        return nullptr;
     auto p = node;
     do {
         auto k = p->key();
@@ -22,90 +25,100 @@ String *Dict::get(char *str, size_t len, hash_t hash) {
     return nullptr;
 }
 
-void Dict::set(Value &k, Value &v) {
-    if (k.isnil()) return;
+Value Dict::get(const Value& k) {
+    if (k.isnil())
+        return Value::Nil;
     auto node = getnode(k);
-    if (!node)
-        node = newkey(k);
-    node->value() = v;
+    return node ? node->value() : Value::Nil;
 }
 
-Dict::Node *Dict::newkey(Value &k) {
-    auto node = getnode(k.gethash(), true);
-    if (node->empty())
-        node->key() = k;
-    else {
-        auto idle = idlenode();
-        if (!idle) {
-            rehash();
-            return newkey(k);
-        }
-        if (really(node))
+void Dict::set(const Value& k, const Value& v) {
+    if (k.isnil())
+        return;
+    auto node = getnode(k.hash());
+    if (!node)
+        return alloc(1), set(k, v);
+    Node *exist = nullptr;
+    bool needmove = false;
+    if (node->empty())              // node is idle
+        exist = node,
+        exist->key() = k;
+    else if (really(node))          // node is already occupied by a key
+        exist = node->find(k),      // if exists a key equals k
+        needmove = false;
+    else
+        needmove = true;
+    if (!exist) {
+        auto idle = popidle();
+        if (!idle)                  // there is no idle node in the dict,
+            return expand(), set(k, v); // it should expand capacity, and call set again
+        if (needmove)               // the node shouldn't be here,
+            node->moveto(idle),         // it will be moved to a idle node
+            node->init(k, Value::Nil),
+            exist = node;
+        else
             idle->key() = k,        // idle is the new node
             node->linkin(idle),     // link idle into node
-            node = idle;
-        else                        // node is occupied, but it shouldn't be here
-            node->moveto(idle),
-            node->init(k);
+            exist = idle;
     }
-    _size++;
-    return node;
+    incsize();
+    exist->value() = v;
 }
 
-void Dict::rehash() {
-    auto oitems = _items;                // old items
-    auto ocap = _capacity;                // old capacity
-    alloc(ocap ? 2 * ocap : 1);
-    _size = 0;
-
-    auto end = oitems + ocap;
-    for (auto p = oitems; p < end; p++) {
-        if (!p->empty())
-            if (!p->value().isnil())
-                set(p->key(), p->value());
+bool Dict::remove(const Value& k) {
+    auto node = getnode(k);
+    if (node) {
+        auto n = node->rmself();
+        pushidle(n ? n : node);
+        decsize();
+        return true;
     }
-    delete[] oitems;
+    return false;
 }
 
-/* Tuple *Dict::items() { */
-/*     int i = 0; */
-/*     auto tp = Tuple::New(size); */
-/*     auto end = _items + maxsize; */
-/*     for (auto p = _items; p < end; p++) { */
-/*         auto t = Value::tuple(2); */
-/*         if (!p->empty()) { */
-/*             t.set(0, p->key()); */
-/*             t.set(1, p->value()); */
-/*             tp->set(i++, t); */
-/*         } */
-/*     } */
-/*     return tp; */
-/* } */
+void Dict::clear() {
+    auto o = _items;
+    alloc(0);
+    delete[] o;
+}
 
-/* Tuple *Dict::keys() { */
-/*     int i = 0; */
-/*     auto tp = Tuple::New(size); */
-/*     auto end = _items + maxsize; */
-/*     for (auto p = _items; p < end; p++) */
-/*         if (!p->empty()) */
-/*             tp->set(i++, p->key()); */
-/*     return tp; */
-/* } */
-/* Tuple *Dict::values() { */
-/*     int i = 0; */
-/*     auto tp = Tuple::New(size); */
-/*     auto end = _items + maxsize; */
-/*     for (auto p = _items; p < end; p++) */
-/*         if (!p->empty()) */
-/*             tp->set(i++, p->value()); */
-/*     return tp; */
-/* } */
+void Dict::expand() {
+    auto oi = _items;                   // old items
+    auto oc = capacity();               // old capacity
+    if (oc) {
+        alloc(2 * oc);
+        transfer(oi, oi + oc);
+        delete[] oi;
+    } else {
+        alloc(1);
+    }
 
-Dict::Node *Dict::idlenode() {
-    while (_free)
-        if (_items[--_free].empty())
-            return &_items[_free];
-    return nullptr;
+}
+
+void Dict::transfer(Node *begin, Node *end) {
+    Node *collid = nullptr;                 // List head of colliding nodes
+    for (auto p = begin; p < end; p++) {
+        if (p->empty() || p->value().isnil())
+            continue;
+        auto node = getnode(p->key().hash());
+        if (node->empty())
+            node->set(p->key(), p->value()),
+            incsize();
+        else if (collid)
+            collid->linkin(p);
+        else
+            p->setnext(p),                  // detatch p from it's linklist
+            collid = p;
+    }
+    // Insert the colliding nodes 
+    auto p = collid;
+    if (p) do {
+        auto idle = popidle(),
+             node = getnode(p->key().hash());
+        idle->set(p->key(), p->value());
+        node->linkin(idle);
+        incsize();
+    } while (p = p->next(), p != collid);
 }
 
 }

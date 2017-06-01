@@ -184,15 +184,21 @@ static bool pack(String &s, ostream& o) {
 
 static Value readstr(istream& i, size_t len) {
     auto str = String::New(i, len);
-    str->isbin(false); return Value::V(str);
+    if (str.isnil())
+        return Value::Nil;
+    str.s().isbin(false);
+    return str;
 }
 static Value readbin(istream& i, size_t len) {
     auto str = String::New(i, len);
-    str->isbin(true); return Value::V(str);
+    if (str.isnil())
+        return Value::Nil;
+    str.s().isbin(true);
+    return str;
 }
 static Value readarray(istream& i, size_t len) {
-    auto l = L();
-    for (Value v; len--; l += v)
+    auto l = List::New(len);
+    for (Value v; len--; l.l().push(v))
         if (!mp_unpack(v, i))
             return Value::Nil;
     return l;
@@ -205,7 +211,7 @@ static Value readmap(istream& i, size_t len) {
             return Value::Nil;
         if (!mp_unpack(v, i))
             return Value::Nil;
-        d.set(k, v);
+        d.d().set(k, v);
     }
     return d;
 }

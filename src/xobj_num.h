@@ -1,7 +1,6 @@
 #ifndef __XOBJ_NUM_H__
 #define __XOBJ_NUM_H__
 
-#include <iostream>
 #include "xobj_obj.h"
 
 namespace xobj {
@@ -14,8 +13,10 @@ struct Int: public Object {
     hash_t hash() const override { return i; }
     type_t type() const override { return TV_INT; }
     operator bool() const override { return val() != 0; }
-    void release() override { delete this; }
-    bool operator==(Value &v) const override {
+    void release() override {
+        delete this;
+    }
+    bool operator==(const Value &v) const override {
         return v.isint() && val() == v.i().val();
     }
 
@@ -32,7 +33,7 @@ struct Float : public Object {
     type_t type() const override { return TV_FLOAT; }
     operator bool() const override { return val() != 0.0; }
     void release() override { delete this; }
-    bool operator==(Value &v) const override {
+    bool operator==(const Value &v) const override {
         return v.isfloat() && val() == v.f().val();
     }
 

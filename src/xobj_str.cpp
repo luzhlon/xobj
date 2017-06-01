@@ -5,7 +5,8 @@
 #include "xobj_dict.h"
 #include "xobj_val.h"
 
-static xobj::Dict strdict;
+static auto _strdict = xobj::Dict::New();
+static auto& strdict = _strdict.d();
 
 static uint32_t _seed = 1314;
 
@@ -28,7 +29,11 @@ _StrAttr _getstrattr(char *data, size_t len) {
 
 uint32_t _gethash(char *data, size_t len) { return _getstrattr(data, len).hash; }
 
-String *String::New(char *data, size_t len) {
+Value::Value(char *str, size_t len) {
+    String::New(str, len).moveto(*this);
+}
+/* TODO: Covert to return-type:Value */
+Value String::New(char *data, size_t len) {
     String *str = nullptr;
     auto attr = _getstrattr(data, len);
     if (attr.iskw) {
@@ -46,12 +51,12 @@ String *String::New(char *data, size_t len) {
 
 using namespace std;
 
-String *String::New(istream& in, size_t n) {
+Value String::New(istream& in, size_t n) {
     auto size = offsetof(VarStr, data) + n + 1;
     auto str = (VarStr *)(new char[size]);
     // Read string from stream failure
     if (!in.read(str->data, n))
-        { delete str; return nullptr; }
+        { delete str; return Value::Nil; }
     str->data[n] = 0, str->len(n);
     auto attr = _getstrattr(str->data, n);
     if (attr.iskw) {
@@ -83,7 +88,7 @@ ConstStr::ConstStr(const char *str) : _str(str) {
         strdict.set(this, this);
 }
 
-bool String::operator==(Value &v) const {
+bool String::operator==(const Value &v) const {
     if (!v.isstr()) return false;
     auto& str = v.s();
     if (&str == this) return true;

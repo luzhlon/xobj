@@ -22,7 +22,7 @@ struct Value {
     Value(const Value &v) {
         refer(v._obj);
     }
-    Value& operator=(Value &v) {
+    Value& operator=(const Value &v) {
         refer(v._obj); return *this;
     }
 
@@ -38,6 +38,12 @@ struct Value {
     Value(const char *str, size_t len) : Value((char *)str, len) {}
     // reference a object
     void refer(Object *o) { decref(); _obj = o; incref(); }
+    // Move this object to another value
+    void moveto(Value &o) {
+        o.decref();
+        o._obj = _obj;
+        _obj = nullptr;
+    }
 
     inline type_t type() const { return _obj ? _obj->type() : TV_NIL; }
 
@@ -45,41 +51,19 @@ struct Value {
     inline bool isbool() const  { return type() == TV_BOOL; }
     inline bool isstr() const   { return type() == TV_STRING; }
     inline bool islist() const  { return type() == TV_LIST; }
+    inline bool istuple() const { return type() == TV_TUPLE; }
     inline bool isdict() const  { return type() == TV_DICT; }
     inline bool isint() const   { return type() == TV_INT; }
     inline bool isfloat() const { return type() == TV_FLOAT; }
 
-    int len();
-    Value& set(Value &k, Value &v);
-    Value  get(Value &k) const;
-    void clear();
+    bool operator==(const Value& v) const {
+        return isnil() ? v.isnil() : o() == v;
+    }
+    bool operator!=(const Value& v) const {
+        return !(*this == v);
+    }
 
-    Value join(Value &v);
-    Value join(const Value &v) { return join((Value &)v); }
-
-    int index(Value &v);
-    int count(Value &v);
-
-    bool operator==(Value& v) const { return isnil() ? v.isnil() : o() == v; }
-    bool operator!=(Value& v) const { return !(*this == v); }
-    Value operator[](Value& v) const { return get(v); }
-    Value& operator+=(Value& v);
-    Value& operator-=(Value& v);
-    // unsafe
     operator bool() { return isnil() ? false : (bool)o(); }
-    //operator int();
-    //operator float();
-    //operator char*();
-
-    Value  get(const Value &k) const { return get((Value &)k); }
-    Value& set(const Value &k, const Value &v) { return set((Value &)k, (Value &)v); }
-    int index(const Value &v) { return index((Value &)v); }
-    int count(const Value &v) { return count((Value &)v); }
-    Value& operator=(const Value &v) { return operator=((Value &)v); }
-    Value operator[](const Value &v) const { return get(v); }
-    Value& operator+=(const Value &v) { return operator+=((Value &)v); }
-    Value& operator-=(const Value &v) { return operator-=((Value &)v); }
-    bool operator==(const Value &v) const { return operator==((Value &)v); }
 
     inline Object&  o() const { return *_obj; }
     inline List&    l() const { return *(List *)_obj; }
@@ -90,9 +74,14 @@ struct Value {
     inline Bool&    b() const { return *(Bool *)_obj; }
     inline Tuple&   t() const { return *(Tuple *)_obj; }
     // get pointer
-    void *p() const;
+    template<typename T>
+    inline T *p() const {
+        return isint() ? (T *)i().val() : nullptr;
+    }
 
-    hash_t gethash() { return isnil() ? 0 : _obj->hash(); }
+    hash_t hash() const {
+        return isnil() ? 0 : _obj->hash();
+    }
 
 private:
     void incref() { if (!isnil()) _obj->incref(); }          // reference ++

@@ -3,7 +3,11 @@
 
 namespace xobj {
 
-Tuple *Tuple::New(uint16_t n) {
+Value List::New(size_t size) {
+    return new List(size);
+}
+
+Value Tuple::New(uint16_t n) {
     auto size = sizeof(Value) * n + offsetof(Tuple, data);
     auto t = (Tuple *)(new char[size]);
     t->Tuple::Tuple(n);

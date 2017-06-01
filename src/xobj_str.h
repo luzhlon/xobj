@@ -14,13 +14,13 @@ _StrAttr _getstrattr(char *data, size_t len);
 uint32_t _gethash(char *data, size_t len);
 
 struct String: public Object {
-    static String *New(char *str, size_t len);
-    static String *New(std::istream& in, size_t len);
+    static Value New(char *str, size_t len);
+    static Value New(std::istream& in, size_t len);
 
     inline size_t len() const { return _ex.u32; }
     bool equals(char *str, size_t len);
 
-    bool operator==(Value &v) const override;
+    bool operator==(const Value &v) const override;
     type_t type() const override { return TV_STRING; }
     operator bool() const override { return len() > 0; }
 
